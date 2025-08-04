@@ -1,0 +1,33 @@
+{
+  "IndexDocument": { "Suffix": "index.html" },
+  "ErrorDocument": { "Key": "Error.html" },
+  "RoutingRules": [
+    {
+      "Condition": { "KeyPrefixEquals": "About.html" },
+      "Redirect": {
+        "Protocol": "https",
+        "HostName": "tusitio.com",
+        "ReplaceKeyWith": "Acerca.html",
+        "HttpRedirectCode": "301"
+      }
+    },
+    {
+      "Condition": { "KeyPrefixEquals": "contact.html" },
+      "Redirect": {
+        "Protocol": "https",
+        "HostName": "tusitio.com",
+        "ReplaceKeyWith": "Contacto.html",
+        "HttpRedirectCode": "301"
+      }
+    },
+    {
+      "Condition": { "KeyPrefixEquals": "empresa/index.html" },
+      "Redirect": {
+        "Protocol": "https",
+        "HostName": "tusitio.com",
+        "ReplaceKeyWith": "index.html",
+        "HttpRedirectCode": "301"
+      }
+    }
+  ]
+}

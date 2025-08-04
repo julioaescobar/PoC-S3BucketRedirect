@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Infraestructura base - VPC, EC2 con Apache, S3 con redirecciones
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: POC-S3RedirecttoHost
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-VPC"
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-IGW"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PublicSubnet"
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP only
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c101f26f147fa7fd # Amazon Linux 2023 AMI para us-east-1
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+
+          echo "<h1>Index Page</h1>" > /var/www/html/index.html
+          echo "<h1>Página de Contacto</h1>" > /var/www/html/Contacto.html
+          echo "<h1>Acerca de Nosotros</h1>" > /var/www/html/Acerca.html
+          echo "<h1>Error 404</h1>" > /var/www/html/Error.html
+
+          systemctl enable httpd
+          systemctl start httpd
+
+  RedirectBucket:
+    Type: AWS::S3::Bucket
+    Properties: {}
+
+Outputs:
+  EC2PublicDNS:
+    Description: DNS público del servidor Apache
+    Value: !GetAtt WebServerInstance.PublicDnsName
+    Export:
+      Name: !Sub "${ProjectName}-EC2-DNS"
+
+  S3WebsiteURL:
+    Description: URL de sitio web del bucket con redirecciones
+    Value: !Sub 
+      - "${BucketName}.s3-website-${AWS::Region}.amazonaws.com"
+      - BucketName: !Ref RedirectBucket
+    Export:
+      Name: !Sub "${ProjectName}-S3-Redirect-URL"
+
+  VPCId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${ProjectName}-VPCId"
+
+  PublicSubnetId:
+    Value: !Ref PublicSubnet
+    Export:
+      Name: !Sub "${ProjectName}-SubnetId"
+
+  SecurityGroupId:
+    Value: !Ref EC2SecurityGroup
+    Export:
+      Name: !Sub "${ProjectName}-SGId"
